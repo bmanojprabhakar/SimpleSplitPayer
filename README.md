@@ -42,7 +42,7 @@ A simple web application to track shared expenses between two people, with autom
 
 3. **Importing from CSV**:
    - Place your CSV file in the project directory
-   - Make sure it has the required columns (see the example in `Coorg_expenditures.csv`)
+   - Make sure it has the required columns
    - The application will automatically import the data on first run
 
 ## Data Structure
