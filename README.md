@@ -9,42 +9,79 @@ A simple web application to track shared expenses between two people, with autom
 - Track running balance between two people
 - View all expenses in a sortable table
 - Responsive design that works on mobile and desktop
-- Import existing expenses from CSV
+- Customizable person names with localStorage persistence
 
 ## Setup
 
+### Local Development
+
 1. Make sure you have Python 3.8+ installed
-2. Install the required packages:
+2. Clone the repository and navigate to the project directory
+3. Create a virtual environment:
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
    ```
+4. Install the required packages:
+   ```bash
    pip install -r requirements.txt
    ```
-3. Run the application:
+5. Copy the environment file and modify as needed:
+   ```bash
+   cp .env.example .env
    ```
+6. Run the application:
+   ```bash
    python app.py
    ```
-4. Open your browser and go to `http://localhost:5000`
+7. Open your browser and go to `http://localhost:5000`
+
+### Deployment
+
+This application is configured for deployment on platforms like:
+- **Render**: Use the `render.yaml` configuration
+- **Railway**: Supports automatic deployment from Git
+- **Heroku**: Use the `Procfile` for deployment
+
+For production deployment, consider using PostgreSQL instead of SQLite by setting the `DATABASE_URL` environment variable.
 
 ## Usage
 
 1. **Adding an Expense**:
-
    - Click the "Add Expense" button
    - Fill in the expense details
    - The shares will be automatically calculated equally, but you can modify them
    - Click "Save Expense" to add it to the list
 
-2. **Viewing Expenses**:
+2. **Customizing Names**:
+   - Use the "Customize Names" section to set person names
+   - Names are saved in browser localStorage and persist across sessions
 
+3. **Viewing Expenses**:
    - All expenses are displayed in a table
    - The current balance is shown at the top
-   - Negative amounts in red indicate who owes money
-   - Positive amounts in green indicate who is owed money
+   - Edit or delete expenses using the action buttons
 
-3. **Importing from CSV**:
-   - Place your CSV file in the project directory
-   - Make sure it has the required columns
-   - The application will automatically import the data on first run
+## Environment Variables
+
+- `FLASK_ENV`: Set to `development` for local development
+- `DATABASE_URL`: Database connection string (defaults to SQLite)
+- `PORT`: Port number for the application (defaults to 5000)
 
 ## Data Structure
 
-The application uses SQLite to store expenses in a file called `expenses.db` in the project directory.
+The application uses SQLAlchemy ORM with support for both SQLite (development) and PostgreSQL (production).
+
+## Free Hosting Recommendations
+
+1. **Render** (Recommended): 
+   - Free tier with 750 hours/month
+   - Automatic deployments from Git
+   - Built-in PostgreSQL database
+
+2. **Railway**:
+   - $5 credit monthly on free tier
+   - Easy deployment process
+
+3. **Heroku**:
+   - Free tier discontinued, but still popular for paid hosting

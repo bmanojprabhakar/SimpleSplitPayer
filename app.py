@@ -1,11 +1,21 @@
+import os
 from flask import Flask, render_template, request, jsonify, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
-import pandas as pd
-import os
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///expenses.db'
+
+# Database configuration with environment variable support
+database_url = os.environ.get('DATABASE_URL')
+if database_url:
+    # Handle PostgreSQL URL format for production
+    if database_url.startswith('postgres://'):
+        database_url = database_url.replace('postgres://', 'postgresql://', 1)
+    app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+else:
+    # Default to SQLite for local development
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///expenses.db'
+
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
@@ -48,20 +58,13 @@ def index():
 
 @app.route('/add_expense', methods=['POST'])
 def add_expense():
-    print("\n=== New Expense Request ===")
-    print(f"Request headers: {request.headers}")
-    print(f"Content-Type: {request.content_type}")
-    
     try:
         if request.content_type != 'application/json':
-            print("Invalid content type. Expected application/json")
             return jsonify({'success': False, 'error': 'Content-Type must be application/json'}), 400
             
         data = request.get_json()
-        print(f"Received JSON data: {data}")
         
         if not data:
-            print("No JSON data received")
             return jsonify({'success': False, 'error': 'No data provided'}), 400
         
         # Validate required fields
@@ -70,25 +73,29 @@ def add_expense():
         
         if missing_fields:
             error_msg = f'Missing required fields: {", ".join(missing_fields)}'
-            print(f"Validation error: {error_msg}")
             return jsonify({'success': False, 'error': error_msg}), 400
         
         try:
-            # Parse the date string into a date object
+            # Parse and validate data
             date_obj = datetime.strptime(str(data['date']), '%Y-%m-%d').date()
             total_amount = float(data['total_amount'])
             person1_share = float(data['person1_share'])
             person2_share = float(data['person2_share'])
             paid_by = str(data['paid_by'])
             
-            print(f"Parsed values - date: {date_obj}, total: {total_amount}, "
-                  f"p1_share: {person1_share}, p2_share: {person2_share}, paid_by: {paid_by}")
+            # Validate paid_by value
+            if paid_by not in ['person1', 'person2']:
+                return jsonify({'success': False, 'error': 'paid_by must be either person1 or person2'}), 400
+            
+            # Validate amounts are positive
+            if total_amount <= 0 or person1_share < 0 or person2_share < 0:
+                return jsonify({'success': False, 'error': 'Amounts must be positive'}), 400
             
             expense = Expense(
                 date=date_obj,
-                description=str(data['description']),
-                category=str(data.get('category', '')),
-                payment_mode=str(data.get('payment_mode', '')),
+                description=str(data['description']).strip(),
+                category=str(data.get('category', '')).strip(),
+                payment_mode=str(data.get('payment_mode', '')).strip(),
                 total_amount=total_amount,
                 paid_by=paid_by,
                 person1_share=person1_share,
@@ -97,10 +104,8 @@ def add_expense():
                 running_total=0
             )
             
-            print("Adding expense to database...")
             db.session.add(expense)
             db.session.commit()
-            print("Expense added successfully!")
             
             return jsonify({
                 'success': True,
@@ -121,16 +126,12 @@ def add_expense():
             
         except ValueError as e:
             error_msg = f'Invalid data format: {str(e)}'
-            print(f"Data validation error: {error_msg}")
             db.session.rollback()
             return jsonify({'success': False, 'error': error_msg}), 400
             
     except Exception as e:
         error_msg = f'Unexpected error: {str(e)}'
-        print(f"Unexpected error: {error_msg}")
-        print(f"Error type: {type(e).__name__}")
-        import traceback
-        traceback.print_exc()
+        app.logger.error(f"Error in add_expense: {error_msg}")
         db.session.rollback()
         return jsonify({'success': False, 'error': error_msg}), 500
 
@@ -140,17 +141,25 @@ def edit_expense(expense_id):
         data = request.get_json()
         expense = Expense.query.get_or_404(expense_id)
         
-        # Update expense
+        # Validate and update expense
         expense.date = datetime.strptime(data['date'], '%Y-%m-%d').date()
-        expense.description = data['description']
-        expense.category = data.get('category', '')
-        expense.payment_mode = data.get('payment_mode', '')
+        expense.description = str(data['description']).strip()
+        expense.category = str(data.get('category', '')).strip()
+        expense.payment_mode = str(data.get('payment_mode', '')).strip()
         expense.total_amount = float(data['total_amount'])
-        expense.paid_by = data['paid_by']
+        expense.paid_by = str(data['paid_by'])
         expense.person1_share = float(data.get('person1_share', 0))
         expense.person2_share = float(data.get('person2_share', 0))
         expense.balance = 0
         expense.running_total = 0
+        
+        # Validate paid_by value
+        if expense.paid_by not in ['person1', 'person2']:
+            return jsonify({'success': False, 'error': 'paid_by must be either person1 or person2'}), 400
+        
+        # Validate amounts are positive
+        if expense.total_amount <= 0 or expense.person1_share < 0 or expense.person2_share < 0:
+            return jsonify({'success': False, 'error': 'Amounts must be positive'}), 400
         
         db.session.commit()
         
@@ -171,6 +180,7 @@ def edit_expense(expense_id):
             }
         })
     except Exception as e:
+        app.logger.error(f"Error in edit_expense: {str(e)}")
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 400
 
@@ -183,10 +193,11 @@ def delete_expense(expense_id):
         
         return jsonify({'success': True})
     except Exception as e:
+        app.logger.error(f"Error in delete_expense: {str(e)}")
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 400
 
-# Removed recalculate_running_totals function and its route as they're no longer needed
-
 if __name__ == '__main__':
-    app.run(debug=True, port=5002)
+    port = int(os.environ.get('PORT', 5000))
+    debug = os.environ.get('FLASK_ENV') == 'development'
+    app.run(debug=debug, host='0.0.0.0', port=port)
