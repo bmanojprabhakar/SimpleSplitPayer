@@ -22,8 +22,11 @@ class Expense(db.Model):
     balance = db.Column(db.Float, nullable=False)
     running_total = db.Column(db.Float, nullable=False)
 
-with app.app_context():
+@app.cli.command("init-db")
+def init_db():
+    """Initializes the database."""
     db.create_all()
+    print("Initialized the database.")
 
 @app.route('/')
 def index():
